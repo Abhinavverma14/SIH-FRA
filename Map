@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>India FRA Claims Interactive Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="icon" href="data:,"> <!-- prevents favicon 404 error -->
+<style>
+  html, body {
+    height: 100%; margin: 0; padding: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: #f0faf0; overflow: hidden;
+  }
+   #sidebar{
+    position:fixed; top:0; left:0; bottom:0; width:300px;
+    background: rgba(224,242,233,0.85); border-right:1px solid #a3d3b1;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.06); padding:15px 20px; display:flex; flex-direction:column;
+    z-index:1001; overflow-y:auto; user-select:none;
+  }
+  #titleBar{background: rgba(56,142,60,0.85); color:#fff; font-weight:700; font-size:1.4rem; padding:12px 15px; border-radius:12px; text-align:center; margin-bottom:12px;}
+  #searchInput{width:100%; padding:10px 14px; font-size:1rem; border:2px solid var(--accent); border-radius:25px; outline:none; background:#fff; transition:all .25s;}
+  #searchInput:focus{border-color:var(--accent-dark); box-shadow:0 0 8px rgba(46,125,50,0.18); background:#e8f5e9;}
+  label{color:var(--accent-dark); font-weight:600; margin-top:10px; cursor:pointer;}
+  #infoPanel{background: rgba(56,142,60,0.12); border-radius:12px; padding:14px; margin-top:12px; color:#1b5e20; flex-grow:1; overflow:auto;}
+
+  #map {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 300px;
+    right: 0;
+    height: 100%; /* ✅ FIX */
+  }
+  /* === Overlay blur === */
+  .blurred { filter: blur(6px); pointer-events: none; }
+  /* === Modal overlay === */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.3);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 2000;
+  }
+  /* Dashboard button */
+  #goDashboardBtn{
+    position:fixed; bottom:70px; right:30px;
+    background:rgba(56,142,60,0.85); color:#fff; font-weight:700;
+    border:none; border-radius:20px; padding:12px 20px; cursor:pointer;
+    box-shadow:0 6px 18px rgba(56,142,60,0.28); z-index:1100;
+  }
+
+  .overlay.active { display: flex; animation: fadeIn 0.3s ease; }
+  /* === Modal box === */
+  .modal {
+    background: rgba(255,255,255,0.9);
+    border-radius: 20px;
+    padding: 20px;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+    animation: slideUp 0.35s ease;
+    position: relative;
+  }
+  .modal h2, .modal h3 { margin-top: 0; color: #2e7d32; }
+  .district-list button {
+    display: block; width: 100%;
+    margin: 8px 0; padding: 10px;
+    border: none; border-radius: 12px;
+    background: #e8f5e9; font-weight: 600;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .district-list button:hover { background: #c8e6c9; }
+  .insights p { margin: 6px 0; }
+  .show-graph-btn {
+    margin-top: 15px;
+    padding: 10px 16px;
+    border: none; border-radius: 14px;
+    background: #43a047; color: white;
+    font-weight: 600; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .show-graph-btn:hover { background: #2e7d32; }
+  /* Close button */
+  .close-btn {
+    background: none; border: none;
+    font-size: 20px; font-weight: bold;
+    position: absolute; top: 10px; right: 15px;
+    cursor: pointer; color: #444;
+  }
+  /* Exclude dashboard button from blur */
+  #goDashboardBtn { position: fixed; bottom: 70px; right: 30px; z-index: 2000; }
+  /* Animations */
+  @keyframes fadeIn { from {opacity:0} to {opacity:1} }
+  @keyframes slideUp { from {transform: translateY(40px); opacity:0} to {transform:translateY(0);opacity:1} }
+</style>
+</head>
+<body>
+
+<div id="sidebar" role="complementary" aria-label="Sidebar with controls and information">
+  <div id="titleBar" tabindex="0">FRA Claims Map</div>
+  <div id="searchBar" style="margin-top:10px;">
+    <input type="text" id="searchInput" placeholder="Search state..." aria-label="Search state" autocomplete="off" />
+  </div>
+  <label><input type="checkbox" id="filterPriority" checked /> Show Priority States Only</label>
+  <div id="infoPanel" aria-live="polite" aria-atomic="true" tabindex="0">
+    <h3>State Info</h3>
+    <div id="infoContent">Click a priority state marker to see details here.</div>
+  </div>
+</div>
+<div id="map" role="application" aria-label="Interactive map of India"></div>
+<button id="goDashboardBtn" aria-label="Go to Dashboard">Go to Dashboard</button>
+<!-- Overlay for modals -->
+<div id="overlay" class="overlay"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const indiaCenter=[22,79];
+const map=L.map('map',{center:indiaCenter,zoom:5});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+// ✅ Force map to resize properly
+setTimeout(() => {
+  map.invalidateSize();
+}, 100);
+
+// Example data with districts
+const states=[
+  {
+    name:"Madhya Pradesh",latlng:[23.47,77.94],priority:true,
+    districts:[
+      { name:"Bhopal", approved:50,pending:20,rejected:5, area:"285 km²",beneficiaries:2000 },
+      { name:"Indore", approved:70,pending:15,rejected:8, area:"525 km²",beneficiaries:3000 }
+    ]
+  },
+  {
+    name: "Tripura",
+    latlng: [23.9408, 91.9882],
+    priority: true,
+    info: "Tripura is a priority state with many FRA claims.",
+    claims: { approved: 30, pending: 12, rejected: 3 },
+    districts: [
+      { name: "West Tripura", area_km2: 1000, beneficiaries: 900, claims: { approved: 12, pending: 4, rejected: 1 } },
+      { name: "Dhalai", area_km2: 2200, beneficiaries: 700, claims: { approved: 8, pending: 6, rejected: 2 } }
+    ]
+  },
+  {
+    name: "Odisha",
+    latlng: [20.9517, 85.0985],
+    priority: true,
+    info: "Odisha is a priority state with many FRA claims.",
+    claims: { approved: 95, pending: 30, rejected: 8 },
+    districts: [
+      { name: "Khordha", area_km2: 2600, beneficiaries: 2000, claims: { approved: 35, pending: 12, rejected: 3 } },
+      { name: "Cuttack", area_km2: 3200, beneficiaries: 1700, claims: { approved: 30, pending: 10, rejected: 2 } },
+      { name: "Koraput", area_km2: 5200, beneficiaries: 1200, claims: { approved: 30, pending: 8, rejected: 3 } }
+    ]
+  },
+  {
+    name:"Telangana",latlng:[17.12,79.20],priority:true,
+    districts:[
+      { name:"Hyderabad", approved:40,pending:10,rejected:3, area:"650 km²",beneficiaries:1800 }
+    ]
+  }
+];
+
+const overlay=document.getElementById('overlay');
+function openModal(html,blurTargets=[]){
+  overlay.innerHTML=html;
+  overlay.classList.add('active');
+  blurTargets.forEach(el=>el.classList.add('blurred'));
+}
+function closeModal(){
+  overlay.classList.remove('active');
+  overlay.innerHTML="";
+  document.querySelectorAll('.blurred').forEach(el=>el.classList.remove('blurred'));
+}
+
+// State markers
+states.forEach(state=>{
+  const marker=L.marker(state.latlng).addTo(map);
+  marker.on('click',()=>{
+    const districtBtns = state.districts.map(d =>
+      `<button onclick="openDistrict('${state.name}','${d.name}')">${d.name}</button>`
+    ).join('');
+    openModal(`
+      <div class="modal">
+        <button class="close-btn" onclick="closeModal()">&times;</button>
+        <h2>${state.name}</h2>
+        <h3>Districts</h3>
+        <div class="district-list">${districtBtns}</div>
+      </div>
+    `,[document.getElementById('map'),document.getElementById('sidebar')]);
+  });
+});
+
+// ✅ Fixed openDistrict to handle both formats
+window.openDistrict=function(stateName,districtName){
+  const state=states.find(s=>s.name===stateName);
+  const d=state.districts.find(x=>x.name===districtName);
+
+  const approved = d.approved ?? d.claims?.approved ?? 0;
+  const pending = d.pending ?? d.claims?.pending ?? 0;
+  const rejected = d.rejected ?? d.claims?.rejected ?? 0;
+  const area = d.area ?? (d.area_km2 ? d.area_km2 + " km²" : "N/A");
+  const beneficiaries = d.beneficiaries ?? "N/A";
+
+  openModal(`
+    <div class="modal">
+      <button class="close-btn" onclick="closeModal()">&times;</button>
+      <h2>${d.name} (${state.name})</h2>
+      <div class="insights">
+        <p><strong>Approved:</strong> ${approved}</p>
+        <p><strong>Pending:</strong> ${pending}</p>
+        <p><strong>Rejected:</strong> ${rejected}</p>
+        <p><strong>Area:</strong> ${area}</p>
+        <p><strong>Beneficiaries:</strong> ${beneficiaries}</p>
+      </div>
+      <button class="show-graph-btn" onclick="openGraph(${approved},${pending},${rejected})">Show Bar Graph</button>
+    </div>
+  `,[document.getElementById('map'),document.getElementById('sidebar')]);
+};
+
+// Handle bar graph modal
+window.openGraph=function(a,p,r){
+  openModal(`
+    <div class="modal" style="max-width:350px;">
+      <button class="close-btn" onclick="closeModal()">&times;</button>
+      <h3>Claims Breakdown</h3>
+      <canvas id="chart" width="300" height="220"></canvas>
+    </div>
+  `,[document.getElementById('map'),document.getElementById('sidebar')]);
+  const ctx=document.getElementById('chart').getContext('2d');
+  new Chart(ctx,{
+    type:'bar',
+    data:{ labels:['Approved','Pending','Rejected'],
+      datasets:[{ data:[a,p,r], backgroundColor:['#4caf50','#ff9800','#f44336']}]
+    },
+    options:{ responsive:true, plugins:{legend:{display:false}} }
+  });
+};
+
+// ✅ Dashboard button redirect
+document.getElementById("goDashboardBtn").addEventListener("click", () => {
+  window.location.href = "dashboard.html"; // change this to your actual dashboard file
+});
+</script>
+</body>
+</html>
