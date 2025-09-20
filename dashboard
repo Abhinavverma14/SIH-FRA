@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>📊 FRA Dashboard – Insights & Trends</title>
+<style>
+  /* Reset & base */
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: rgba(0, 100, 0, 0.1);
+    color: #003300;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  a, button {
+    cursor: pointer;
+  }
+  h1, h2, h3 {
+    margin: 0;
+  }
+  /* Translucent green header bar with fully rounded corners (not sticky) */
+  header {
+    background: rgba(0, 128, 0, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 100, 0, 0.3);
+    padding: 1rem 1rem 1.2rem;
+    text-align: center;
+    backdrop-filter: saturate(180%) blur(8px);
+    border-radius: 16px;
+    margin: 1rem 1rem 0 1rem;
+  }
+  header h1 {
+    font-size: 2rem;
+    color: #004d00;
+    user-select: none;
+  }
+  header h2 {
+    font-weight: 400;
+    font-size: 1.1rem;
+    color: #006600cc;
+    margin-top: 0.3rem;
+    user-select: none;
+  }
+  /* Container */
+  .container {
+    max-width: 1200px;
+    margin: 1rem auto 2rem;
+    padding: 0 1rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Info Cards */
+  .info-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+  .card {
+    flex: 1 1 150px;
+    min-width: 150px;
+    max-width: 220px;
+    background: #e6f2e6;
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    box-shadow: 0 4px 8px rgba(0, 100, 0, 0.15);
+    color: #003300;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: transform 0.3s ease;
+    user-select: none;
+  }
+  .card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(0, 100, 0, 0.3);
+  }
+  .card .title {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 0.3rem;
+  }
+  .card .value {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .card.green {
+    border-left: 6px solid #2e7d32;
+    background: #d0f0d0;
+  }
+  .card.yellow {
+    border-left: 6px solid #f9a825;
+    background: #fff8e1;
+  }
+  .card.red {
+    border-left: 6px solid #c62828;
+    background: #ffebee;
+  }
+  .card.blue {
+    border-left: 6px solid #1565c0;
+    background: #e3f2fd;
+  }
+  /* Filters */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 180px;
+  }
+  label {
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+  }
+  select, input[type="search"] {
+    padding: 0.5rem 0.75rem;
+    border-radius: 20px;
+    border: 1.5px solid #006600cc;
+    outline-offset: 2px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+  }
+  select:focus, input[type="search"]:focus {
+    border-color: #2e7d32;
+  }
+  /* Charts container */
+  .charts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+  .chart-card {
+    background: #e6f2e6;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 4px 8px rgba(0, 100, 0, 0.15);
+    flex: 1 1 350px;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+  }
+  .chart-card h3 {
+    margin-bottom: 0.5rem;
+    text-align: center;
+    color: #2e7d32;
+  }
+  canvas {
+    width: 100% !important;
+    height: 250px !important;
+    user-select: none;
+  }
+  /* Table */
+  .table-container {
+    overflow-x: auto;
+    margin-bottom: 2rem;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #d0f0d0;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  thead {
+    background: #2e7d32;
+    color: white;
+  }
+  th, td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #a5d6a7;
+    user-select: none;
+  }
+  th.sortable:hover {
+    background: #4caf50cc;
+    cursor: pointer;
+  }
+  th.sorted-asc::after {
+    content: " ▲";
+  }
+  th.sorted-desc::after {
+    content: " ▼";
+  }
+  tbody tr:hover {
+    background: #b2dfdbcc;
+  }
+  /* Search bar */
+  .search-bar {
+    max-width: 300px;
+    margin: 0 auto 1rem;
+  }
+  /* Insights */
+  .insights {
+    background: #d0f0d0;
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    box-shadow: 0 4px 8px rgba(0, 100, 0, 0.15);
+    max-width: 1200px;
+    margin: 0 auto 2rem;
+  }
+  .insights h3 {
+    color: #2e7d32;
+    margin-bottom: 0.75rem;
+  }
+  .insights ul {
+    list-style: inside disc;
+    padding-left: 0;
+    margin: 0;
+  }
+  .insights li {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+  /* Progress bars */
+  .progress-bar {
+    background: #a5d6a7;
+    border-radius: 20px;
+    overflow: hidden;
+    height: 16px;
+    margin-top: 0.3rem;
+  }
+  .progress-bar-inner {
+    height: 100%;
+    background: #2e7d32;
+    width: 0;
+    transition: width 1.2s ease;
+  }
+  /* Heatmap placeholder */
+  .heatmap {
+    background: #d0f0d0;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 4px 8px rgba(0, 100, 0, 0.15);
+    max-width: 480px;
+    margin: 0 auto 2rem;
+    text-align: center;
+    color: #2e7d32;
+    user-select: none;
+  }
+  /* Responsive */
+  @media (max-width: 900px) {
+    .charts {
+      flex-direction: column;
+      align-items: center;
+    }
+    .info-cards {
+      justify-content: center;
+    }
+  }
+  @media (max-width: 500px) {
+    .filters {
+      flex-direction: column;
+      align-items: center;
+    }
+    .filter-group {
+      width: 100%;
+      max-width: 300px;
+    }
+  }
+  /* Screen reader only */
+  .sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0,0,0,0) !important;
+    border: 0 !important;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 FRA Dashboard – Insights &amp; Trends</h1>
+  <h2>Track claims, approvals, and district-level priorities.</h2>
+</header>
+
+<div class="container">
+
+  <!-- Info Cards -->
+  <section class="info-cards" aria-label="Key Metrics">
+    <div class="card blue" id="totalClaimsCard" tabindex="0" role="button" aria-pressed="false" aria-label="Total Claims Filed">
+      <div class="title">Total Claims Filed</div>
+      <div class="value" id="totalClaims">0</div>
+    </div>
+    <div class="card green" id="approvedClaimsCard" tabindex="0" role="button" aria-pressed="false" aria-label="Approved Claims">
+      <div class="title">Approved Claims</div>
+      <div class="value" id="approvedClaims">N/A</div>
+    </div>
+    <div class="card yellow" id="pendingClaimsCard" tabindex="0" role="button" aria-pressed="false" aria-label="Pending Claims">
+      <div class="title">Pending Claims</div>
+      <div class="value" id="pendingClaims">N/A</div>
+    </div>
+    <div class="card red" id="rejectedClaimsCard" tabindex="0" role="button" aria-pressed="false" aria-label="Rejected Claims">
+      <div class="title">Rejected Claims</div>
+      <div class="value" id="rejectedClaims">N/A</div>
+    </div>
+    <div class="card yellow" id="highPriorityDistrictsCard" tabindex="0" role="button" aria-pressed="false" aria-label="High-Priority Districts">
+      <div class="title">High-Priority Districts</div>
+      <div class="value" id="highPriorityDistricts">N/A</div>
+    </div>
+  </section>
+
+  <!-- Filters -->
+  <section class="filters" aria-label="Filters">
+    <div class="filter-group">
+      <label for="stateSelect">Select State</label>
+      <select id="stateSelect" aria-controls="rankingTable" aria-label="Filter by State">
+        <option value="all">All States</option>
+      </select>
+    </div>
+    <div class="filter-group search-bar">
+      <label for="tableSearchInput">Search District/State</label>
+      <input type="search" id="tableSearchInput" placeholder="Search..." aria-controls="rankingTable" aria-label="Search District or State" />
+    </div>
+  </section>
+
+  <!-- Ranking Table -->
+  <section aria-label="District and State Ranking Table">
+    <div class="table-container" tabindex="0" aria-live="polite" aria-relevant="all">
+      <table id="rankingTable" role="grid" aria-describedby="tableDesc">
+        <caption id="tableDesc" class="sr-only">Table listing states and districts with total claims and approval percentages</caption>
+        <thead>
+          <tr>
+            <th scope="col">State/District Name</th>
+            <th scope="col">Claimed</th>
+            <th scope="col">Pending</th>
+            <th scope="col">Rejected</th>
+            <th scope="col">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Rows inserted by JS -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Insights -->
+  <section class="insights" aria-label="AI-driven Recommendations">
+    <h3>Insights &amp; Recommendations</h3>
+    <ul id="insightsList" role="list">
+      <!-- Insights inserted by JS -->
+    </ul>
+  </section>
+
+  <!-- Heatmap placeholder -->
+  <section class="heatmap" aria-label="Mini heatmap of India showing claims density">
+    <h3>Claims Density Heatmap (India)</h3>
+    <p>Heatmap visualization coming soon.</p>
+  </section>
+
+</div>
+
+<script>
+  let statesData = [];
+  let districtsData = [];
+
+  async function fetchStates() {
+    try {
+      const res = await fetch('http://127.0.0.1:5500/api/states');
+      const states = await res.json();
+      const stateSelect = document.getElementById('stateSelect');
+      stateSelect.innerHTML = '<option value="all">All States</option>';
+      states.forEach(state => {
+        const option = document.createElement('option');
+        option.value = state;
+        option.textContent = state;
+        stateSelect.appendChild(option);
+      });
+    } catch (err) {
+      console.error('Error fetching states:', err);
+    }
+  }
+
+  async function fetchData() {
+    try {
+      const res = await fetch('http://127.0.0.1:5500/api/data');
+      const json = await res.json();
+      statesData = json.states;
+      districtsData = json.districts;
+      updateDashboard();
+      populateTable();
+    } catch (err) {
+      console.error('Error fetching data:', err);
+    }
+  }
+
+  function updateDashboard() {
+    const totalClaims = statesData.reduce((sum, s) => sum + s.totalClaims, 0);
+    document.getElementById('totalClaims').textContent = totalClaims.toLocaleString();
+    document.getElementById('approvedClaims').textContent = 'N/A';
+    document.getElementById('pendingClaims').textContent = 'N/A';
+    document.getElementById('rejectedClaims').textContent = 'N/A';
+    document.getElementById('highPriorityDistricts').textContent = 'N/A';
+  }
+
+  function populateTable() {
+    const tbody = document.querySelector('#rankingTable tbody');
+    tbody.innerHTML = '';
+
+    const stateFilter = document.getElementById('stateSelect').value.toLowerCase();
+    const searchTerm = document.getElementById('tableSearchInput').value.toLowerCase();
+
+    let filteredStates = statesData;
+    let filteredDistricts = districtsData;
+
+    if (stateFilter !== 'all') {
+      filteredStates = filteredStates.filter(s => s.name.toLowerCase() === stateFilter);
+      filteredDistricts = filteredDistricts.filter(d => d.state && d.state.toLowerCase() === stateFilter);
+    }
+
+    if (searchTerm) {
+      filteredStates = filteredStates.filter(s => s.name.toLowerCase().includes(searchTerm));
+      filteredDistricts = filteredDistricts.filter(d => d.name.toLowerCase().includes(searchTerm));
+    }
+
+    // Show states first (bold)
+    filteredStates.forEach(state => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${state.name}</strong></td>
+        <td>${state.totalClaims.toLocaleString()}</td>
+        <td>N/A</td>
+        <td>N/A</td>
+        <td>N/A</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Then districts (indented)
+    filteredDistricts.forEach(district => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding-left: 2rem;">${district.name}</td>
+        <td>${district.claimed.toLocaleString()}</td>
+        <td>${district.pending.toLocaleString()}</td>
+        <td>${district.rejected.toLocaleString()}</td>
+        <td>${district.action}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    if (filteredStates.length === 0 && filteredDistricts.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="5" style="text-align:center;">No data found</td>`;
+      tbody.appendChild(tr);
+    }
+  }
+
+  document.getElementById('stateSelect').addEventListener('change', populateTable);
+  document.getElementById('tableSearchInput').addEventListener('input', populateTable);
+
+  // Initialize
+  fetchStates();
+  fetchData();
+</script>
+
+</body>
+</html>
